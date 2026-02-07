@@ -1,5 +1,6 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 
+from app.auth.security import verify_token
 from app.use_cases.create_report import create_report
 from app.use_cases.get_report import get_report_by_id
 
@@ -7,7 +8,9 @@ router = APIRouter()
 
 
 @router.post("/reports")
-async def upload_report(file: UploadFile = File(...)):
+async def upload_report(file: UploadFile = File(...)
+,    token: str = Depends(verify_token)  
+):
     pdf_bytes = await file.read()
 
     result = create_report(

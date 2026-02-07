@@ -4,5 +4,8 @@ import os
 API_TOKEN = os.getenv("API_TOKEN")
 
 def verify_token(authorization: str = Header(...)):
-    if authorization != f"Bearer {API_TOKEN}":
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    token = authorization.split(" ")[1]
+    if token != API_TOKEN:
         raise HTTPException(status_code=401, detail="Unauthorized")
