@@ -1,4 +1,3 @@
-# app/services/firestore.py
 from google.cloud import firestore
 
 db = firestore.Client()
