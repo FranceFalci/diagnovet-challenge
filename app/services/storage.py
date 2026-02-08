@@ -1,7 +1,6 @@
-# app/services/storage.py
 from google.cloud import storage
 from datetime import timedelta
-
+sa_email = os.environ.get("SERVICE_ACCOUNT_EMAIL") 
 client = storage.Client()
 
 def upload_pdf(file_bytes: bytes, filename: str, bucket_name: str, report_id: str):
@@ -21,7 +20,9 @@ def generate_signed_url(bucket_name: str, blob_name: str, minutes: int = 15):
     blob = bucket.blob(blob_name)
 
     url = blob.generate_signed_url(
-        expiration=timedelta(minutes=minutes),
-        method="GET"
+        version="v4",
+        expiration=datetime.timedelta(minutes=15),
+        method="GET",
+        service_account_email=sa_email
     )
     return url
