@@ -6,20 +6,16 @@ from app.use_cases.get_report import get_report_by_id
 
 router = APIRouter()
 
-
 @router.post("/reports")
-async def upload_report(file: UploadFile = File(...)
-,    token: str = Depends(verify_token)  
+async def upload_report(
+    file: UploadFile = File(...),
+        token: str = Depends(verify_token)
 ):
+    # print("DEBUG file.filename:", file.filename)
+    # print("DEBUG token:", token)
     pdf_bytes = await file.read()
-
-    result = create_report(
-        file_bytes=pdf_bytes,
-        filename=file.filename,
-    )
-
+    result = create_report(file_bytes=pdf_bytes, filename=file.filename)
     return result
-
 
 @router.get("/reports/{report_id}")
 async def get_report_endpoint(report_id: str):
