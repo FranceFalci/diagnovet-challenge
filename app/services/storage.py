@@ -4,7 +4,6 @@ from datetime import timedelta
 import os
 from dotenv import load_dotenv
 load_dotenv()
-sa_email = os.environ.get("SERVICE_ACCOUNT_EMAIL") 
 client = storage.Client()
 
 def upload_pdf(file_bytes: bytes, filename: str, bucket_name: str, report_id: str):
@@ -22,6 +21,7 @@ def upload_image(image_bytes: bytes, bucket_name: str, report_id: str, index: in
 def generate_signed_url(bucket_name: str, blob_name: str, minutes: int = 15):
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(blob_name)
+    sa_email = os.environ.get("SERVICE_ACCOUNT_EMAIL") 
 
     url = blob.generate_signed_url(
         version="v4",
