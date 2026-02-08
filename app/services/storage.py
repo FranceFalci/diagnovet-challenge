@@ -1,5 +1,8 @@
 from google.cloud import storage
 from datetime import timedelta
+import os
+from dotenv import load_dotenv
+load_dotenv()
 sa_email = os.environ.get("SERVICE_ACCOUNT_EMAIL") 
 client = storage.Client()
 
