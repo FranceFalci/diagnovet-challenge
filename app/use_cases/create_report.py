@@ -1,4 +1,5 @@
 import uuid
+import logging
 from app.services.storage import upload_pdf, upload_image
 from app.services.document_ai import process_document
 from app.utils.pdf_images import extract_images
@@ -12,51 +13,51 @@ from app.config import (
     DOCUMENT_AI_PROCESSOR_ID,
 )
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("diagnovet.create_report")
+
 def create_report(file_bytes: bytes, filename: str) -> str:
     report_id = str(uuid.uuid4())
+    
+    logger.info(f"[START] Iniciando procesamiento. Report ID: {report_id} | Archivo: {filename}")
 
-    # 1. PDF a GCS
-    pdf_path = upload_pdf(
-        file_bytes=file_bytes,
-        filename=filename,
-        bucket_name=GCS_BUCKET,
-        report_id=report_id,
-    )
+    try:
+        images = extract_images(file_bytes)
 
-    # 2. Imágenes (ultrasonidos)
-    images = extract_images(file_bytes)
-    image_paths = [
-        upload_image(img, GCS_BUCKET, report_id, idx)
-        for idx, img in enumerate(images)
-    ]
+        image_paths = []
+        for idx, img in enumerate(images):
+            path = upload_image(img, GCS_BUCKET, report_id, idx)
+            image_paths.append(path)
+        
+        document = process_document(
+            project_id=GCP_PROJECT,
+            location="us",
+            processor_id=DOCUMENT_AI_PROCESSOR_ID,
+            file_bytes=file_bytes,
+        )
 
-    # 3. OCR + layout
-    document = process_document(
-        project_id=GCP_PROJECT,
-        location="us",
-        processor_id=DOCUMENT_AI_PROCESSOR_ID,
-        file_bytes=file_bytes,
-    )
+        full_text = clean_text(document.text)
 
-    full_text = clean_text(document.text)
+        structured = extract_structured_data(
+            project_id=GCP_PROJECT,
+            location="us-central1",
+            text=full_text,
+        )
 
-    # 4. Vertex AI (estructuración)
-    structured = extract_structured_data(
-        project_id=GCP_PROJECT,
-        location="us-central1",
-        text=full_text,
-    )
+        report_data = ReportData(
+            **structured,
+            raw_text=full_text
+        )
 
-    report_data = ReportData(
-        **structured,
-        raw_text=full_text
-    )
+        save_report(report_id, {
+            "images": image_paths,
+            "data": report_data.dict(),
+        })
 
-    # 5. Persistencia
-    save_report(report_id, {
-        "pdf_path": pdf_path,
-        "images": image_paths,
-        "data": report_data.dict(),
-    })
+        logger.info(f"[END] Reporte {report_id} creado exitosamente.")
+        return report_id
 
-    return report_id
+    except Exception as e:
+        logger.error(f"[ERROR] Falló el proceso para el reporte {report_id}.")
+        logger.error(f"Detalle del error: {str(e)}")
+        raise e

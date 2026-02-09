@@ -1,9 +1,13 @@
 import datetime
 from google.cloud import storage
-from datetime import timedelta
+import google.auth
+# from datetime import timedelta
 import os
 import logging
 from dotenv import load_dotenv
+from google.auth import impersonated_credentials
+
+
 load_dotenv()
 client = storage.Client()
 logger = logging.getLogger("uvicorn.error")
@@ -22,22 +26,24 @@ def upload_image(image_bytes: bytes, bucket_name: str, report_id: str, index: in
 
 def generate_signed_url(bucket_name: str, blob_name: str, minutes: int = 15):
     try:
-        # --- DEBUG START ---
         sa_email = os.environ.get("SERVICE_ACCOUNT_EMAIL")
         
-        logger.info("============== DEBUG START ==============")
-        logger.info(f"Generando URL para Bucket: '{bucket_name}' / Blob: '{blob_name}'")
-        logger.info(f"Valor de SERVICE_ACCOUNT_EMAIL: '{sa_email}'")
+        logger.info(f"Intentando firmar URL para: {blob_name}")
         
-        # Verificación explícita
         if not sa_email:
-            logger.error("!!! ERROR CRITICO: La variable de entorno SERVICE_ACCOUNT_EMAIL está VACIA o es None.")
-            logger.error("Esto causará que google-storage intente usar credenciales locales y falle.")
-        else:
-            logger.info("El email existe, intentando firmar vía IAM...")
-        # --- DEBUG END ---
+            raise ValueError("Falta SERVICE_ACCOUNT_EMAIL")
 
-        client = storage.Client()
+        source_credentials, project_id = google.auth.default()
+
+        signer_credentials = impersonated_credentials.Credentials(
+            source_credentials=source_credentials,
+            target_principal=sa_email,
+            target_scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            lifetime=minutes * 60
+        )
+
+        client = storage.Client(credentials=signer_credentials)
+        
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(blob_name)
 
@@ -45,14 +51,11 @@ def generate_signed_url(bucket_name: str, blob_name: str, minutes: int = 15):
             version="v4",
             expiration=datetime.timedelta(minutes=minutes),
             method="GET",
-            service_account_email=sa_email,
-            access_token=None # Forzamos a que no busque tokens locales
         )
         
-        logger.info(f"SUCCESS: URL generada correctamente (empieza con {url[:15]}...)")
+        logger.info(f"URL Generada con éxito: {url[:30]}...")
         return url
 
     except Exception as e:
-        logger.error(f"!!! EXCEPCION AL FIRMAR URL: {str(e)}")
-        # Re-lanzamos el error para que la app responda 500, pero ya quedó registrado en logs
+        logger.error(f"!!! ERROR FINAL: {str(e)}")
         raise e
